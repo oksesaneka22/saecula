@@ -15,6 +15,8 @@ public:
     sf::Texture waterTexture;
     sf::Texture stoneTexture;
     sf::Texture treeTexture;
+    sf::Texture woodTexture;  // Add wood texture
+    sf::Texture dirtTexture;  // Add dirt texture
 
     // Noise cache for performance
     std::unordered_map<std::pair<int, int>, float, PairHash> noiseCache;
@@ -24,6 +26,8 @@ public:
     sf::RectangleShape waterTile;
     sf::RectangleShape stoneTile;
     sf::RectangleShape treeTile;
+    sf::RectangleShape woodTile;  // Add wood tile
+    sf::RectangleShape dirtTile;  // Add dirt tile
     bool useSimpleGraphics = false;
 
     Map();
@@ -43,6 +47,8 @@ public:
     void loadChunksAroundPlayer(sf::Vector2f playerPos);
 
     bool isTileSolid(int worldX, int worldY) const;
+    bool destroyTree(int worldX, int worldY); // New method for tree destruction
+    bool destroyStone(int worldX, int worldY); // New method for stone destruction
     void draw(sf::RenderWindow& window, sf::View& camera);
 };
 

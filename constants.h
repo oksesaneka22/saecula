@@ -21,7 +21,8 @@ enum class TileType {
     GRASS = 0,
     WATER = 1,
     STONE = 2,
-    TREE = 3
+    TREE = 3,
+    DIRT = 4  // New dirt tile type
 };
 
 enum class BiomeType {
@@ -30,6 +31,24 @@ enum class BiomeType {
     MOUNTAIN = 2,
     LAKE = 3,
     RIVER = 4
+};
+
+// Item types for inventory
+enum class ItemType {
+    GRASS = 0,
+    WATER = 1,
+    STONE = 2,
+    TREE = 3,
+    WOOD = 4,
+    WOOD_PICKAXE = 5,  // New tool items
+    WOOD_AXE = 6
+};
+
+// Tool slot types
+enum class ToolSlotType {
+    PICKAXE = 0,
+    AXE = 1,
+    TOOL_SLOT_COUNT = 2
 };
 
 #endif

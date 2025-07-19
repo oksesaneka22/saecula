@@ -1,31 +1,61 @@
-#include "map.h"
 #include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <unordered_map>
 #include <random>
 #include <cmath>
 #include <algorithm>
+
+#include <SFML/Graphics.hpp>
+
+#include "map.h"
+
+// Remove all these constant redefinitions - they're already in constants.h
+// const int CHUNK_SIZE = 16;
+// const int WORLD_WIDTH = 256;
+// const int WORLD_HEIGHT = 256;
+// const int TILE_SIZE = 32;
+// const int RENDER_DISTANCE = 5;
+// const int CHUNKS_X = WORLD_WIDTH / CHUNK_SIZE;
+// const int CHUNKS_Y = WORLD_HEIGHT / CHUNK_SIZE;
+
+// Helper function to convert world coordinates to chunk coordinates
+ChunkCoord worldToChunk(int worldX, int worldY) {
+    return { worldX / CHUNK_SIZE, worldY / CHUNK_SIZE };
+}
 
 Map::Map() {
     // Try to load textures, fallback to simple rectangles
     if (!grassTexture.loadFromFile("textures/grass.png") ||
         !waterTexture.loadFromFile("textures/water.png") ||
         !stoneTexture.loadFromFile("textures/stone.png") ||
-        !treeTexture.loadFromFile("textures/tree.png")) {
+        !treeTexture.loadFromFile("textures/tree.png") ||
+        !woodTexture.loadFromFile("textures/wood.png") ||
+        !dirtTexture.loadFromFile("textures/dirt.png")) {
 
         std::cout << "Using simple graphics for better performance..." << std::endl;
         useSimpleGraphics = true;
 
         // Create simple colored rectangles
-        grassTile.setSize(sf::Vector2f(TILE_SIZE, TILE_SIZE));
-        grassTile.setFillColor(sf::Color(34, 139, 34));
+        grassTile.setSize({ static_cast<float>(TILE_SIZE), static_cast<float>(TILE_SIZE) });
+        grassTile.setFillColor({ 34, 139, 34 });
 
-        waterTile.setSize(sf::Vector2f(TILE_SIZE, TILE_SIZE));
-        waterTile.setFillColor(sf::Color(30, 144, 255));
+        waterTile.setSize({ static_cast<float>(TILE_SIZE), static_cast<float>(TILE_SIZE) });
+        waterTile.setFillColor({ 30, 144, 255 });
 
-        stoneTile.setSize(sf::Vector2f(TILE_SIZE, TILE_SIZE));
-        stoneTile.setFillColor(sf::Color(128, 128, 128));
+        stoneTile.setSize({ static_cast<float>(TILE_SIZE), static_cast<float>(TILE_SIZE) });
+        stoneTile.setFillColor({ 128, 128, 128 });
 
-        treeTile.setSize(sf::Vector2f(TILE_SIZE, TILE_SIZE));
-        treeTile.setFillColor(sf::Color(0, 100, 0));
+        treeTile.setSize({ static_cast<float>(TILE_SIZE), static_cast<float>(TILE_SIZE) });
+        treeTile.setFillColor({ 0, 100, 0 });
+
+        woodTile.setSize({ static_cast<float>(TILE_SIZE), static_cast<float>(TILE_SIZE) });
+        woodTile.setFillColor({ 139, 69, 19 });  // Brown color for wood
+
+        dirtTile.setSize({ static_cast<float>(TILE_SIZE), static_cast<float>(TILE_SIZE) });
+        dirtTile.setFillColor({ 139, 90, 43 });  // Brown color for dirt
     }
 }
 
@@ -234,17 +264,17 @@ void Map::loadChunk(ChunkCoord chunkCoord) {
 
                 chunk->tiles[y][x] = Tile(tileType, *texture);
                 chunk->tiles[y][x]->sprite.setTexture(*texture);
-                chunk->tiles[y][x]->sprite.setPosition(sf::Vector2f(
+                chunk->tiles[y][x]->sprite.setPosition({
                     static_cast<float>(worldX * TILE_SIZE),
                     static_cast<float>(worldY * TILE_SIZE)
-                ));
+                    });
 
                 sf::Vector2u textureSize = texture->getSize();
                 if (textureSize.x > 0 && textureSize.y > 0) {
-                    chunk->tiles[y][x]->sprite.setScale(sf::Vector2f(
+                    chunk->tiles[y][x]->sprite.setScale({
                         static_cast<float>(TILE_SIZE) / textureSize.x,
                         static_cast<float>(TILE_SIZE) / textureSize.y
-                    ));
+                        });
                 }
             }
 
@@ -322,6 +352,104 @@ bool Map::isTileSolid(int worldX, int worldY) const {
     return chunkIt->second->solidTiles[tileY][tileX];
 }
 
+bool Map::destroyTree(int worldX, int worldY) {
+    if (worldX < 0 || worldX >= WORLD_WIDTH || worldY < 0 || worldY >= WORLD_HEIGHT) {
+        return false;
+    }
+
+    ChunkCoord chunkCoord = {
+        worldX / CHUNK_SIZE,
+        worldY / CHUNK_SIZE
+    };
+
+    auto chunkIt = loadedChunks.find(chunkCoord);
+    if (chunkIt == loadedChunks.end()) {
+        return false;
+    }
+
+    int tileX = worldX % CHUNK_SIZE;
+    int tileY = worldY % CHUNK_SIZE;
+
+    // Check if it's actually a tree
+    if (chunkIt->second->tiles[tileY][tileX].has_value() &&
+        chunkIt->second->tiles[tileY][tileX]->type == TileType::TREE) {
+
+        // Replace tree with grass
+        if (!useSimpleGraphics) {
+            chunkIt->second->tiles[tileY][tileX] = Tile(TileType::GRASS, grassTexture);
+            chunkIt->second->tiles[tileY][tileX]->sprite.setTexture(grassTexture);
+            chunkIt->second->tiles[tileY][tileX]->sprite.setPosition({
+                static_cast<float>(worldX * TILE_SIZE),
+                static_cast<float>(worldY * TILE_SIZE)
+                });
+
+            sf::Vector2u textureSize = grassTexture.getSize();
+            if (textureSize.x > 0 && textureSize.y > 0) {
+                chunkIt->second->tiles[tileY][tileX]->sprite.setScale({
+                    static_cast<float>(TILE_SIZE) / textureSize.x,
+                    static_cast<float>(TILE_SIZE) / textureSize.y
+                    });
+            }
+        }
+
+        // Update collision data
+        chunkIt->second->solidTiles[tileY][tileX] = false;
+
+        return true;
+    }
+
+    return false;
+}
+
+bool Map::destroyStone(int worldX, int worldY) {
+    if (worldX < 0 || worldX >= WORLD_WIDTH || worldY < 0 || worldY >= WORLD_HEIGHT) {
+        return false;
+    }
+
+    ChunkCoord chunkCoord = {
+        worldX / CHUNK_SIZE,
+        worldY / CHUNK_SIZE
+    };
+
+    auto chunkIt = loadedChunks.find(chunkCoord);
+    if (chunkIt == loadedChunks.end()) {
+        return false;
+    }
+
+    int tileX = worldX % CHUNK_SIZE;
+    int tileY = worldY % CHUNK_SIZE;
+
+    // Check if it's actually stone
+    if (chunkIt->second->tiles[tileY][tileX].has_value() &&
+        chunkIt->second->tiles[tileY][tileX]->type == TileType::STONE) {
+
+        // Replace stone with dirt
+        if (!useSimpleGraphics) {
+            chunkIt->second->tiles[tileY][tileX] = Tile(TileType::DIRT, dirtTexture);
+            chunkIt->second->tiles[tileY][tileX]->sprite.setTexture(dirtTexture);
+            chunkIt->second->tiles[tileY][tileX]->sprite.setPosition({
+                static_cast<float>(worldX * TILE_SIZE),
+                static_cast<float>(worldY * TILE_SIZE)
+                });
+
+            sf::Vector2u textureSize = dirtTexture.getSize();
+            if (textureSize.x > 0 && textureSize.y > 0) {
+                chunkIt->second->tiles[tileY][tileX]->sprite.setScale({
+                    static_cast<float>(TILE_SIZE) / textureSize.x,
+                    static_cast<float>(TILE_SIZE) / textureSize.y
+                    });
+            }
+        }
+
+        // Update collision data (dirt is not solid)
+        chunkIt->second->solidTiles[tileY][tileX] = false;
+
+        return true;
+    }
+
+    return false;
+}
+
 void Map::draw(sf::RenderWindow& window, sf::View& camera) {
     sf::Vector2f cameraCenter = camera.getCenter();
     sf::Vector2f cameraSize = camera.getSize();
@@ -362,13 +490,14 @@ void Map::draw(sf::RenderWindow& window, sf::View& camera) {
                         case TileType::WATER: shape = &waterTile; break;
                         case TileType::STONE: shape = &stoneTile; break;
                         case TileType::TREE: shape = &treeTile; break;
+                        case TileType::DIRT: shape = &dirtTile; break;
                         default: shape = &grassTile; break;
                         }
 
-                        shape->setPosition(sf::Vector2f(
+                        shape->setPosition({
                             static_cast<float>(worldX * TILE_SIZE),
                             static_cast<float>(worldY * TILE_SIZE)
-                        ));
+                            });
 
                         window.draw(*shape);
                     }
